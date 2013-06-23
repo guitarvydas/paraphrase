@@ -52,9 +52,24 @@ Unsigned-Float	<- [0-9]+ '.' [0-9]+ Exponent*
 Exponent	<- 'E' [+-] [0-9]+
 String		<- SQString / DQString / Char-List
 SQString	<- ['] [!\']+ [']
+                   { (:destructure (q1 str q2)
+                      (declare (ignore q1 q2))
+                      (text str)) }
 DQString	<- ["] [!\"]+ ["]
+                   { (:destructure (q1 str q2)
+                      (declare (ignore q1 q2))
+                      (text str)) }
 Char-List	<- LBRACKET Char (COMMA Char)* RBRACKET
-Char		<- [!\'] / ['] ' ' [']
+                   { (:destructure (lb c str rb)
+                      (declare (ignore lb rb))
+                      (format t "~A /~A/ ~A~ ~A%" lb c str rb)
+                   ;   (concatenate 'string (text c) (text str)))
+                   }
+Char            <- Char1 / Char2
+Char1		<- [!\']
+                   { (:text t) }
+Char2           <- ['] ' ' [']
+                   {(:constant " ")}
 Sign		<- ('+' / '-')* Spacing
 Cut		<- '!' Spacing
 IS		<- [iI][sS] Spacing
@@ -64,8 +79,9 @@ LBRACKET	<- '[' Spacing
 RBRACKET	<- ']' Spacing
 COMMA		<- ',' Spacing
 
-Comment 	<- Line-Comment
 Spacing 	<- (Space / Comment)*
+	           { (:lambda(x) (declare (ignore x)) (values)) }
+Comment 	<- Line-Comment
 Line-Comment 	<- '%' (!EndOfLine .)* (EndOfLine / EndOfFile)
 Space   	<- ' ' / '\t' / EndOfLine
 EndOfLine 	<- '\r\n' / '\n' / '\r'
@@ -73,3 +89,20 @@ EndOfFile 	<- !.
 
 %prolog
 ))
+
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (set-macro-character #\{
+                       #'(lambda (s c)
+                           (declare (ignore c))
+                           (esrap:parse 'cl-user::prolog
+                                        (with-output-to-string (str)
+                                          (loop for c = (read-char s nil 'eof)
+                                                until (or (eq c 'eof) (char= c #\}))
+                                                do (write-char c str))))))
+
+
+(defun test-prolog ()
+  ; from http://www.cs.toronto.edu/~hojjat/384f06/simple-prolog-examples.html
+  '{
+likes(mary,food).
+})
