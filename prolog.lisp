@@ -14,9 +14,16 @@
 Prolog 		<- (Fact / CompoundQuery / Rule)+ Spacing EndOfFile
 Fact		<- Predicate Args '.' / Predicate '.'
 CompoundQuery	<- '?-' Spacing Query (COMMA Query)* '.'
+                  { (:destructure (q sp query queries dot)
+                     (declare (ignore q sp dot))
+                     `(?- ,query ,@(mapcar #'second queries))) }
+
 Rule		<- Head Spacing ':-' Spacing Body '.'
 
 Query		<- Small-Ident Args
+                   { (:destructure (id args)
+                      `(,id ,@args)) }
+
 Head		<- Small-Ident Args / Small-Ident
 Body		<- Goal (COMMA Goal)*
 Goal		<- Small-Ident Args / Small-Ident / Arith / Cut
@@ -36,17 +43,34 @@ MULOP		<- ( '*' / '/' ) Spacing
 
 Predicate	<- Small-Ident
 Args		<- LPAR Fundament (COMMA Fundament)* RPAR
+                   { (:destructure (lp f fs rp)
+                      (declare (ignore lp rp))
+                      `(,f ,@(mapcar #'second fs))) }
+
 Fundament	<- Atom / Number / Variable / Structure / String / '_' / List / Structure
 
 List		<- LBRACKET Fundament (COMMA Fundament)* RBRACKET
 
 Variable	<- [_A-Z] [_A-Za-z0-9]*
+                   { (:destructure (a b) (intern (string-upcase (esrap:text "?" a b)))) }
+
 Atom		<- Small-Ident / Special+ / '[]' / '{}' / SQString
 Small-Ident	<- [a-z] [_A-Za-z0-9]*
+                   { (:destructure (a b) (intern (string-upcase (esrap:text a b)))) }
+
 Special		<- '#' / '$' / '&' / '*' / '+' / '-' / '.' / '/' / ':' / '<' / '>' / '=' / '?' / '@' / '^' / '~' / '\\'
 Number		<- Integer / Float
-Integer		<- Sign Unsigned-Int / Unsigned-Int
+
+Integer		<- Sign Unsigned-Int
+                   { (:destructure (s i)
+                      (if (eq 'minus s)
+                          (- i)
+                        i)) }                              
+
 Unsigned-Int	<- [0-9]+
+                   { (:lambda (n)
+                       (parse-integer (esrap:text n))) }
+
 Float		<- Sign Unsigned-Float / Unsigned-Float
 Unsigned-Float	<- [0-9]+ '.' [0-9]+ Exponent*
 Exponent	<- 'E' [+-] [0-9]+
@@ -54,16 +78,16 @@ String		<- SQString / DQString / Char-List
 SQString	<- ['] [!\']+ [']
                    { (:destructure (q1 str q2)
                       (declare (ignore q1 q2))
-                      (text str)) }
+                      (esrap:text str)) }
 DQString	<- ["] [!\"]+ ["]
                    { (:destructure (q1 str q2)
                       (declare (ignore q1 q2))
-                      (text str)) }
+                      (esrap:text str)) }
 Char-List	<- LBRACKET Char (COMMA Char)* RBRACKET
                    { (:destructure (lb c str rb)
-                      (declare (ignore lb rb))
+                      (declare (ignorable lb rb))
                       (format t "~A /~A/ ~A~ ~A%" lb c str rb)
-                   ;   (concatenate 'string (text c) (text str)))
+                      (concatenate 'string (esrap:text c) (esrap:text str)))
                    }
 Char            <- Char1 / Char2
 Char1		<- [!\']
@@ -71,6 +95,11 @@ Char1		<- [!\']
 Char2           <- ['] ' ' [']
                    {(:constant " ")}
 Sign		<- ('+' / '-')* Spacing
+                   { (:destructure (sign sp)
+                      (declare (ignore sp))
+                      (or (and sign (string= "-" (first sign)) 'minus)
+                          'plus)) }
+
 Cut		<- '!' Spacing
 IS		<- [iI][sS] Spacing
 LPAR		<- '(' Spacing
@@ -98,11 +127,9 @@ EndOfFile 	<- !.
                                         (with-output-to-string (str)
                                           (loop for c = (read-char s nil 'eof)
                                                 until (or (eq c 'eof) (char= c #\}))
-                                                do (write-char c str))))))
+                                                do (write-char c str)))))))
 
 
 (defun test-prolog ()
   ; from http://www.cs.toronto.edu/~hojjat/384f06/simple-prolog-examples.html
-  '{
-likes(mary,food).
-})
+  (esrap:parse 'prolog "likes(mary,food)."))
