@@ -4,28 +4,60 @@
 ;; http://www.amzi.com/AdventureInProlog/a9struct.php
 
 
+(in-package :prolog)
+
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (in-package :cl-user)
   (set-dispatch-macro-character #\# #\> #'cl-heredoc:read-heredoc))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   #.(esrap:parse 'peg-grammar::grammar #>%prolog>
 
-Prolog 		<- (Fact / CompoundQuery / Rule)+ Spacing EndOfFile
-Fact		<- Predicate Args '.' / Predicate '.'
-CompoundQuery	<- '?-' Spacing Query (COMMA Query)* '.'
-                  { (:destructure (q sp query queries dot)
-                     (declare (ignore q sp dot))
-                     `(?- ,query ,@(mapcar #'second queries))) }
+Prolog 		<- Spacing (Fact / CompoundQuery / Rule)+ EndOfFile
+                     { (:destructure (spc fcr eof)
+                        (declare (ignore spc eof))
+                        `(progn ,@fcr)) }
 
-Rule		<- Head Spacing ':-' Spacing Body '.'
+Fact		<- Predicate Args? '.' Spacing
+                   { (:destructure (pred args dot spc)
+                      (declare (ignore dot spc))
+                      (if args
+                          `(<- (,pred ,@args))
+                        `(<- (,pred)))) }
+
+CompoundQuery	<- '?-' Spacing Query (COMMA Query)* '.' Spacing
+                   { (:destructure (q sp query queries dot spc)
+                      (declare (ignore q sp dot spc))
+                      `(?- ,query ,@(mapcar #'second queries))) }
+
+Rule            <- (RuleWithBody / RuleNoBody) Spacing
+                   { (:function first) }
+
+RuleNoBody      <- Head Spacing '.'
+                   { (:destructure (head sp1 dot)
+                      (declare (ignore sp1 dot))
+                      `(<- ,head)) }
+
+RuleWithBody	<- Head Spacing ':-' Spacing Body '.'
+                   { (:destructure (head sp1 rule sp2 body dot)
+                      (declare (ignore sp1 rule sp2 dot))
+                      `(<- ,head ,@body)) }
 
 Query		<- Small-Ident Args
                    { (:destructure (id args)
                       `(,id ,@args)) }
 
-Head		<- Small-Ident Args / Small-Ident
+Head		<- Small-Ident Args?
+                   { (:destructure (id args)
+                      (if args
+                          `(,id ,@args)
+                        `(,id))) }
+
 Body		<- Goal (COMMA Goal)*
+                   { (:destructure (g1 gs)
+                      (if gs
+                          `(,g1 ,@(mapcar #'second gs))
+                        `(,g1))) }
+
 Goal		<- Small-Ident Args / Small-Ident / Arith / Cut
 Structure	<- Functor Args
 Functor		<- Small-Ident
@@ -47,9 +79,14 @@ Args		<- LPAR Fundament (COMMA Fundament)* RPAR
                       (declare (ignore lp rp))
                       `(,f ,@(mapcar #'second fs))) }
 
-Fundament	<- Atom / Number / Variable / Structure / String / '_' / List / Structure
+Fundament	<- Atom / Number / Variable / Structure / String / '_' / List / Cons / Structure
 
 List		<- LBRACKET Fundament (COMMA Fundament)* RBRACKET
+
+Cons		<- LBRACKET Fundament '|' Fundament RBRACKET
+                   { (:destructure (lb car bar cdr rb)
+                      (declare (ignore lb bar rb))
+                      (cons car cdr)) }
 
 Variable	<- [_A-Z] [_A-Za-z0-9]*
                    { (:destructure (a b) (intern (string-upcase (esrap:text "?" a b)))) }
@@ -119,17 +156,3 @@ EndOfFile 	<- !.
 %prolog
 ))
 
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (set-macro-character #\{
-                       #'(lambda (s c)
-                           (declare (ignore c))
-                           (esrap:parse 'cl-user::prolog
-                                        (with-output-to-string (str)
-                                          (loop for c = (read-char s nil 'eof)
-                                                until (or (eq c 'eof) (char= c #\}))
-                                                do (write-char c str)))))))
-
-
-(defun test-prolog ()
-  ; from http://www.cs.toronto.edu/~hojjat/384f06/simple-prolog-examples.html
-  (esrap:parse 'prolog "likes(mary,food)."))

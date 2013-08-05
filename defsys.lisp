@@ -12,7 +12,12 @@
 
 (defsystem prolog (:optimize ((speed 0) (space 0) (safety 3) (debug 3)))
   :members (
+            "package"
             "peg"
             "prolog"
+            "trace"
+            "ptest"
             )
-  :rules ((:compile :all (:requires (:load :previous)))))
+  :rules ((:compile :all (:requires (:load :previous)))
+          (:in-order-to :compile ("ptest")
+           (:caused-by (:compile "prolog")))))
