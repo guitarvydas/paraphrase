@@ -21,13 +21,13 @@ Fact		<- Predicate Args? '.' Spacing
                    { (:destructure (pred args dot spc)
                       (declare (ignore dot spc))
                       (if args
-                          `(<- (,pred ,@args))
-                        `(<- (,pred)))) }
+                          `(defrel (,pred ,@args))
+                        `(defrel (,pred)))) }
 
 CompoundQuery	<- '?-' Spacing Query (COMMA Query)* '.' Spacing
                    { (:destructure (q sp query queries dot spc)
                       (declare (ignore q sp dot spc))
-                      `(?- ,query ,@(mapcar #'second queries))) }
+                      `(defquery ,query ,@(mapcar #'second queries))) }
 
 Rule            <- (RuleWithBody / RuleNoBody) Spacing
                    { (:function first) }
@@ -35,12 +35,12 @@ Rule            <- (RuleWithBody / RuleNoBody) Spacing
 RuleNoBody      <- Head Spacing '.'
                    { (:destructure (head sp1 dot)
                       (declare (ignore sp1 dot))
-                      `(<- ,head)) }
+                      `(defrule ,head)) }
 
 RuleWithBody	<- Head Spacing ':-' Spacing Body '.'
                    { (:destructure (head sp1 rule sp2 body dot)
                       (declare (ignore sp1 rule sp2 dot))
-                      `(<- ,head ,@body)) }
+                      `(defrule ,head ,@body)) }
 
 Query		<- Small-Ident Args
                    { (:destructure (id args)
@@ -58,7 +58,17 @@ Body		<- Goal (COMMA Goal)*
                           `(,g1 ,@(mapcar #'second gs))
                         `(,g1))) }
 
-Goal		<- Small-Ident Args / Small-Ident / Arith / Cut
+Goal		<- Small-Ident-with-Args / Call / Small-Ident / Arith / Cut
+
+Small-Ident-with-Args <- Small-Ident Args
+                   { (:destructure (id args)
+                      `(,id ,@args)) }
+                   
+Call            <- Small-Ident LPAR Goal RPAR
+                   { (:destructure (id lp arg rp)
+                      (declare (ignore lp rp))
+                      `(,id (,@arg))) }
+
 Structure	<- Functor Args
 Functor		<- Small-Ident
 
@@ -138,6 +148,8 @@ Sign		<- ('+' / '-')* Spacing
                           'plus)) }
 
 Cut		<- '!' Spacing
+                   { (:constant '!) }
+
 IS		<- [iI][sS] Spacing
 LPAR		<- '(' Spacing
 RPAR		<- ')' Spacing

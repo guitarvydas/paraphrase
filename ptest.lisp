@@ -22,3 +22,39 @@
           member(Item,[X|Rest]) :- member(Item,Rest).
           }))
 
+(defun test2 ()
+  (pprint '{
+          male(john).
+          male(thomas).
+          male(william).
+          male(james).
+
+          female(X) :- not(male(X)).
+
+          not(Call) :- call(Call), !, fail.
+          not(Call).
+
+          equal(X, X).
+
+          father(william, thomas).
+          father(william, sue).
+          father(john, william).
+          father(james, anne).
+
+          mother(anne, thomas).
+          mother(anne, sue).
+          mother(jeanne, william).
+          mother(denise, anne).
+
+          parent(X, Y) :- father(X, Y).
+          parent(X, Y) :- mother(X, Y).
+
+          grandparent(X, Y) :- parent(X, Z), parent(Z, Y).
+          grandfather(X, Y) :- grandparent(X, Y), male(X).
+          grandmother(X, Y) :- grandparent(X, Y), female(X).
+
+          brother(X, Y) :- male(X), parent(Z, X), not(equal(X, Y)).
+
+          ?- male(X).
+
+          }))
