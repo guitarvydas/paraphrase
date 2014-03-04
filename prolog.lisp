@@ -133,7 +133,7 @@ DQString	<- ["] [!\"]+ ["]
 Char-List	<- LBRACKET Char (COMMA Char)* RBRACKET
                    { (:destructure (lb c str rb)
                       (declare (ignorable lb rb))
-                      (format t "~A /~A/ ~A~ ~A%" lb c str rb)
+                      (format t "~A /~A/ ~A ~A%" lb c str rb)
                       (concatenate 'string (esrap:text c) (esrap:text str)))
                    }
 Char            <- Char1 / Char2
