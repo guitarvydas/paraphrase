@@ -1,3 +1,4 @@
+;
 (in-package :prolog)
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
